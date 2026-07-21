@@ -1,0 +1,20 @@
+{
+  "server_url": "https://mattermost.albay.group:9999",
+  "pat_token": "b3hcba5t4i8uunqikukzbkatgw",
+  "trigger_prefixes": ["/acil", "[ACIL]", "[YANGIN]", "[URGENT]", "[EMERGENCY]"],
+  "channels": ["*"],
+  "audio_enabled": true,
+  "audio_loop": true,
+  "auto_post_ack": true,
+  "ack_message_template": "✅ **{user_display_name}** ({username}) acil durum uyarısını okudu/onayladı: **{title}**",
+  "window_always_on_top": true,
+  "disable_esc_key": true,
+  "fullscreen_for_critical": false,
+  "autostart_enabled": false,
+  "sound_files": {
+    "normal": "sounds/ding.wav",
+    "warning": "sounds/warning.wav",
+    "critical": "sounds/siren.wav",
+    "disaster": "sounds/airraid.wav"
+  }
+}

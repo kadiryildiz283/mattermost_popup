@@ -1,0 +1,16 @@
+venv/
+build/
+dist/
+windows_dist/
+winwheels/
+_internal/
+MattermostEmergencyClient
+MattermostEmergencyClient.exe
+MattermostEmergencyClient_Windows.zip
+*.zip
+*.spec
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+.idea/
