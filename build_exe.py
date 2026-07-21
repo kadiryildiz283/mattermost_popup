@@ -29,7 +29,7 @@ def build():
 
     print(f"Running command: {' '.join(cmd)}")
     subprocess.check_call(cmd)
-    print("\n✅ Build complete! Executable folder is generated at 'dist/MattermostEmergencyClient'")
+    print("\n[OK] Build complete! Executable folder is generated at 'dist/MattermostEmergencyClient'")
 
 if __name__ == "__main__":
     build()
