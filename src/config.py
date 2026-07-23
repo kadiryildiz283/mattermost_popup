@@ -9,6 +9,30 @@ def get_app_dir():
         return os.path.dirname(os.path.abspath(sys.executable))
     return os.path.dirname(os.path.abspath(sys.argv[0]))
 
+def get_user_config_path(filename="config.json"):
+    """
+    Get absolute path for config.json.
+    First tries executable directory. If write-protected (PermissionError), uses AppData directory.
+    """
+    app_dir = get_app_dir()
+    primary_path = os.path.join(app_dir, filename)
+
+    if os.path.exists(primary_path):
+        return primary_path
+
+    # Try creating/writing to test file in app_dir to test permissions
+    try:
+        test_file = os.path.join(app_dir, ".perm_test")
+        with open(test_file, "w") as f:
+            f.write("test")
+        os.remove(test_file)
+        return primary_path
+    except (PermissionError, OSError):
+        appdata = os.environ.get("APPDATA") or os.path.expanduser("~/.config")
+        user_dir = os.path.join(appdata, "MattermostEmergencyClient")
+        os.makedirs(user_dir, exist_ok=True)
+        return os.path.join(user_dir, filename)
+
 DEFAULT_CONFIG = {
     "server_url": "https://mattermost.company.com",
     "pat_token": "YOUR_PERSONAL_ACCESS_TOKEN_HERE",
@@ -36,12 +60,12 @@ class ConfigManager:
         if os.path.isabs(config_filename):
             self.config_path = config_filename
         else:
-            self.config_path = os.path.join(get_app_dir(), config_filename)
+            self.config_path = get_user_config_path(config_filename)
 
         self.data = self.load_config()
 
     def load_config(self):
-        # 1. Check existing config next to executable
+        # 1. Check existing config at self.config_path
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
@@ -66,7 +90,7 @@ class ConfigManager:
             except Exception:
                 pass
 
-        # 3. Create initial config file at executable path
+        # 3. Create initial config file
         self.save_config(DEFAULT_CONFIG)
         return DEFAULT_CONFIG.copy()
 
@@ -78,6 +102,19 @@ class ConfigManager:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             self.data = data
             print(f"[Config] Saved config to: {self.config_path}")
+        except PermissionError:
+            # Fallback to AppData if permission denied
+            appdata = os.environ.get("APPDATA") or os.path.expanduser("~/.config")
+            user_dir = os.path.join(appdata, "MattermostEmergencyClient")
+            os.makedirs(user_dir, exist_ok=True)
+            self.config_path = os.path.join(user_dir, "config.json")
+            try:
+                with open(self.config_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                self.data = data
+                print(f"[Config] Saved config to AppData fallback: {self.config_path}")
+            except Exception as ex:
+                print(f"Error saving config file to AppData: {ex}")
         except Exception as e:
             print(f"Error saving config file: {e}")
 
@@ -91,13 +128,18 @@ class ConfigManager:
     @property
     def ws_url(self):
         url = self.data.get("server_url", "").rstrip("/")
+        token = self.get_active_token()
         if url.startswith("https://"):
             ws_base = "wss://" + url[8:]
         elif url.startswith("http://"):
             ws_base = "ws://" + url[7:]
         else:
             ws_base = "wss://" + url
-        return f"{ws_base}/api/v4/websocket"
+        
+        full_url = f"{ws_base}/api/v4/websocket"
+        if token:
+            full_url += f"?token={token}"
+        return full_url
 
     @property
     def rest_url(self):

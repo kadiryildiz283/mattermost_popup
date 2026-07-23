@@ -29,15 +29,20 @@ def build():
         "--noconfirm",
         "--onefile",
         "--windowed",
+        "--noupx",
         "--icon=app.ico",
         "--name=MattermostEmergencyClient",
         f"--add-data=sounds{sep}sounds",
         f"--add-data=config.json{sep}.",
         f"--add-data=albay-logo.jpg{sep}.",
         f"--add-data=albay-logo.png{sep}.",
-        f"--add-data=app.ico{sep}.",
-        "main.py"
+        f"--add-data=app.ico{sep}."
     ]
+
+    if os.path.exists("file_version_info.txt"):
+        cmd.append("--version-file=file_version_info.txt")
+
+    cmd.append("main.py")
 
     print(f"Running command: {' '.join(cmd)}")
     subprocess.check_call(cmd)
