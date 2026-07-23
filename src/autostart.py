@@ -9,11 +9,13 @@ class AutoStartManager:
     @staticmethod
     def get_executable_path():
         if getattr(sys, 'frozen', False):
-            # Running as compiled PyInstaller executable
-            return os.path.abspath(sys.executable)
+            path = os.path.abspath(sys.executable)
         else:
-            # Running as python script
-            return f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
+            path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
+        
+        if os.name == 'nt' and not path.startswith('"'):
+            path = f'"{path}"'
+        return path
 
     @classmethod
     def is_autostart_enabled(cls):
@@ -29,7 +31,8 @@ class AutoStartManager:
                 try:
                     val, _ = winreg.QueryValueEx(key, APP_NAME)
                     winreg.CloseKey(key)
-                    return bool(val)
+                    exec_path = cls.get_executable_path()
+                    return bool(val) and (val.strip('"') == exec_path.strip('"'))
                 except FileNotFoundError:
                     winreg.CloseKey(key)
                     return False

@@ -72,8 +72,7 @@ class EmergencyWindow(QWidget):
         # Frameless, Always on top
         self.setWindowFlags(
             Qt.FramelessWindowHint |
-            Qt.WindowStaysOnTopHint |
-            Qt.Tool
+            Qt.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setMinimumSize(680, 440)
@@ -239,6 +238,7 @@ class EmergencyWindow(QWidget):
             self.showNormal()
             self.center_on_screen()
 
+        self.show()
         self.raise_()
         self.activateWindow()
 

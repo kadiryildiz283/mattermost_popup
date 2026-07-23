@@ -154,13 +154,23 @@ class SystemTrayApp(QObject):
 
     def on_open_config(self):
         config_path = os.path.abspath(self.config.config_path)
+        if not os.path.exists(config_path):
+            self.config.save_config()
+
         try:
             if os.name == 'nt':
                 os.startfile(config_path)
             else:
                 subprocess.Popen(['xdg-open', config_path])
         except Exception as e:
-            print(f"Failed to open config file: {e}")
+            print(f"Primary open config failed: {e}. Trying editor fallback...")
+            try:
+                if os.name == 'nt':
+                    subprocess.Popen(['notepad.exe', config_path])
+                else:
+                    subprocess.Popen(['nano', config_path])
+            except Exception as ex:
+                print(f"Fallback open config failed: {ex}")
 
     def on_quit(self):
         self.quit_requested.emit()
