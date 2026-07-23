@@ -150,11 +150,13 @@ class MattermostWSThread(QThread):
             except Exception:
                 pass
 
-        # 2. Check trigger prefixes
-        prefixes = self.config.get("trigger_prefixes", ["/acil", "[ACIL]"])
+        # 2. Check trigger prefixes (case-insensitive)
+        prefixes = self.config.get("trigger_prefixes", ["/acil", "[ACIL]", "acil"])
+        lower_text = text.lower()
         matched_prefix = None
         for prefix in prefixes:
-            if text.startswith(prefix) or prefix in text:
+            p_lower = prefix.lower()
+            if lower_text.startswith(p_lower) or p_lower in lower_text:
                 matched_prefix = prefix
                 break
 

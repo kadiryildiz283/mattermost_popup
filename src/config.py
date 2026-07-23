@@ -5,7 +5,7 @@ from src.utils import get_resource_path
 DEFAULT_CONFIG = {
     "server_url": "https://mattermost.company.com",
     "pat_token": "YOUR_PERSONAL_ACCESS_TOKEN_HERE",
-    "trigger_prefixes": ["/acil", "[ACIL]", "[URGENT]", "[EMERGENCY]"],
+    "trigger_prefixes": ["/acil", "[ACIL]", "[URGENT]", "[EMERGENCY]", "acil", "ACIL"],
     "channels": ["*"],
     "audio_enabled": True,
     "audio_loop": True,
