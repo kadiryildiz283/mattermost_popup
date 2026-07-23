@@ -5,6 +5,8 @@ from src.utils import get_resource_path
 DEFAULT_CONFIG = {
     "server_url": "https://mattermost.company.com",
     "pat_token": "YOUR_PERSONAL_ACCESS_TOKEN_HERE",
+    "username": "",
+    "password": "",
     "trigger_prefixes": ["/acil", "[ACIL]", "[URGENT]", "[EMERGENCY]", "acil", "ACIL"],
     "channels": ["*"],
     "audio_enabled": True,
@@ -80,3 +82,32 @@ class ConfigManager:
         if not url.startswith("http://") and not url.startswith("https://"):
             url = "https://" + url
         return f"{url}/api/v4"
+
+    def get_active_token(self):
+        pat_token = self.get("pat_token", "")
+        if pat_token and pat_token != "YOUR_PERSONAL_ACCESS_TOKEN_HERE":
+            return pat_token
+
+        username = self.get("username", "")
+        password = self.get("password", "")
+        if username and password:
+            if hasattr(self, "_cached_token") and self._cached_token:
+                return self._cached_token
+            url = f"{self.rest_url}/users/login"
+            payload = {"login_id": username, "password": password}
+            try:
+                import requests
+                import urllib3
+                urllib3.disable_warnings()
+                res = requests.post(url, json=payload, timeout=10, verify=False)
+                if res.status_code == 200:
+                    token = res.headers.get("Token")
+                    if token:
+                        self._cached_token = token
+                        print("[Config] Authenticated via Username/Password successfully!")
+                        return token
+                print(f"[Config Error] Username/Password login failed: {res.status_code}")
+            except Exception as e:
+                print(f"[Config Exception] Login error: {e}")
+
+        return ""

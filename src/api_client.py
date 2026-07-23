@@ -10,7 +10,7 @@ class MattermostApiClient:
         self.user_info = None
 
     def get_headers(self):
-        token = self.config.get("pat_token", "")
+        token = self.config.get_active_token()
         return {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"

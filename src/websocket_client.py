@@ -31,10 +31,10 @@ class MattermostWSThread(QThread):
 
         while self.running:
             ws_url = self.config.ws_url
-            token = self.config.get("pat_token", "")
+            token = self.config.get_active_token()
 
-            if not token or token == "YOUR_PERSONAL_ACCESS_TOKEN_HERE":
-                self.connection_changed.emit(False, "PAT Token ayarlanmadı! config.json dosyasını düzenleyin.")
+            if not token:
+                self.connection_changed.emit(False, "Token yok! config.json dosyasına PAT veya Kullanıcı Adı/Şifre ekleyin.")
                 time.sleep(5)
                 continue
 
