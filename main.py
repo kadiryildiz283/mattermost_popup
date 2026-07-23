@@ -1,7 +1,9 @@
 import sys
 import os
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QIcon
 
+from src.utils import get_resource_path
 from src.config import ConfigManager
 from src.api_client import MattermostApiClient
 from src.sound_manager import SoundManager
@@ -16,8 +18,13 @@ def main():
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("Mattermost Emergency Client")
 
+    ico_path = get_resource_path("app.ico")
+    if os.path.exists(ico_path):
+        app.setWindowIcon(QIcon(ico_path))
+
     # Ensure sound files exist
-    if not os.path.exists("sounds/siren.wav"):
+    siren_path = get_resource_path("sounds/siren.wav")
+    if not os.path.exists(siren_path):
         print("[Main] Sound files missing. Generating default WAV sounds...")
         generate_all_sounds()
 

@@ -1,5 +1,6 @@
 import json
 import os
+from src.utils import get_resource_path
 
 DEFAULT_CONFIG = {
     "server_url": "https://mattermost.company.com",
@@ -27,19 +28,22 @@ class ConfigManager:
         self.data = self.load_config()
 
     def load_config(self):
-        if not os.path.exists(self.config_path):
+        target_path = self.config_path
+        if not os.path.exists(target_path):
+            target_path = get_resource_path(self.config_path)
+
+        if not os.path.exists(target_path):
             self.save_config(DEFAULT_CONFIG)
             return DEFAULT_CONFIG.copy()
 
         try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
+            with open(target_path, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
-                # Merge missing defaults
                 merged = DEFAULT_CONFIG.copy()
                 merged.update(loaded)
                 return merged
         except Exception as e:
-            print(f"Error loading config file '{self.config_path}': {e}. Using defaults.")
+            print(f"Error loading config file '{target_path}': {e}. Using defaults.")
             return DEFAULT_CONFIG.copy()
 
     def save_config(self, data=None):

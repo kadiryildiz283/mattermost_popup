@@ -1,6 +1,7 @@
 import os
 from PySide6.QtCore import QUrl, QObject, Signal
 from PySide6.QtMultimedia import QSoundEffect
+from src.utils import get_resource_path
 
 class SoundManager(QObject):
     def __init__(self, config_manager):
@@ -16,11 +17,9 @@ class SoundManager(QObject):
         sound_files = self.config.get("sound_files", {})
         sound_rel_path = sound_files.get(priority.lower(), "sounds/siren.wav")
         
-        # Absolute path check
-        abs_path = os.path.abspath(sound_rel_path)
+        abs_path = get_resource_path(sound_rel_path)
         if not os.path.exists(abs_path):
-            # Fallback to sounds/siren.wav or ding.wav if missing
-            abs_path = os.path.abspath("sounds/siren.wav")
+            abs_path = get_resource_path("sounds/siren.wav")
 
         if not os.path.exists(abs_path):
             print(f"[SoundManager Warning] Audio file not found at: {abs_path}")

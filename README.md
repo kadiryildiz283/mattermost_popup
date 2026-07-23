@@ -138,13 +138,15 @@ Daha fazla detay ve öncelik seviyesi belirtmek isterseniz mesaj alanına JSON y
 
 ---
 
-## 📦 Windows için `.exe` Dağıtımı Paketleme
+## 📦 Windows için Tek Parça (`.exe`) Dağıtımı Paketleme
 
-Uygulamayı şirket bilgisayarlarına kurulum gerektirmeden dağıtmak için `.exe` dosyasına dönüştürebilirsiniz:
+Uygulama, klasör veya zip gerektirmeden **tek bir bağımsız `.exe` dosyası** (`--onefile`) olarak derlenmektedir:
 
 ```bash
 python build_exe.py
 ```
 
-Derlenen uygulama `dist/MattermostEmergencyClient/` klasöründe hazır olacaktır.
-Windows başlangıcına (Startup folder: `shell:startup`) ekleyerek PC açılışında arka planda çalışmasını sağlayabilirsiniz.
+- Derlenen uygulama doğrudan `dist/MattermostEmergencyClient.exe` dosyası olarak üretilir.
+- GitHub Actions üzerinde build tamamlandığında doğrudan indirilebilir tek parça `.exe` olarak yayınlanır.
+- `albay-logo.jpg` görseli otomatik olarak yüksek çözünürlüklü `.ico` simgesine dönüştürülüp masaüstü kısayolu, Windows görev çubuğu, sistem tepsi (System Tray) simgesi ve acil durum başlıklarında kullanılır.
+- Windows başlangıcına (Startup folder: `shell:startup`) ekleyerek PC açılışında otomatik çalışmasını sağlayabilirsiniz.

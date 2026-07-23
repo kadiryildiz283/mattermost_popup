@@ -1,10 +1,12 @@
+import os
 import time
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QGraphicsDropShadowEffect, QApplication
 )
-from PySide6.QtGui import QFont, QColor, QKeyEvent, QIcon
+from PySide6.QtGui import QFont, QColor, QKeyEvent, QIcon, QPixmap
+from src.utils import get_resource_path
 
 THEMES = {
     "normal": {
@@ -75,6 +77,11 @@ class EmergencyWindow(QWidget):
         )
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setMinimumSize(680, 440)
+        self.setWindowTitle("Mattermost Emergency Client")
+
+        ico_path = get_resource_path("app.ico")
+        if os.path.exists(ico_path):
+            self.setWindowIcon(QIcon(ico_path))
 
         # Main Layout
         main_layout = QVBoxLayout(self)
@@ -94,9 +101,20 @@ class EmergencyWindow(QWidget):
         card_layout.setContentsMargins(30, 25, 30, 25)
         card_layout.setSpacing(15)
 
-        # 1. Header Bar (Badge + Channel + Time)
+        # 1. Header Bar (Logo + Badge + Channel + Time)
         header_layout = QHBoxLayout()
         
+        logo_path = get_resource_path("albay-logo.png")
+        if not os.path.exists(logo_path):
+            logo_path = get_resource_path("albay-logo.jpg")
+
+        if os.path.exists(logo_path):
+            logo_label = QLabel(self)
+            logo_pixmap = QPixmap(logo_path).scaled(42, 42, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo_label.setPixmap(logo_pixmap)
+            logo_label.setStyleSheet("border-radius: 21px; background: transparent;")
+            header_layout.addWidget(logo_label)
+
         self.badge_label = QLabel("🚨 ACİL DURUM", self)
         self.badge_label.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         self.badge_label.setContentsMargins(12, 6, 12, 6)

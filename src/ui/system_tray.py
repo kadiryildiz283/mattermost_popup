@@ -1,9 +1,10 @@
 import os
 import subprocess
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QPainterPath
 from PySide6.QtCore import Signal, QObject
 from src.autostart import AutoStartManager
+from src.utils import get_resource_path
 
 class SystemTrayApp(QObject):
     test_alert_requested = Signal()
@@ -94,26 +95,41 @@ class SystemTrayApp(QObject):
         pixmap = QPixmap(64, 64)
         pixmap.fill(QColor(0, 0, 0, 0))
 
+        logo_path = get_resource_path("albay-logo.png")
+        if not os.path.exists(logo_path):
+            logo_path = get_resource_path("albay-logo.jpg")
+
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
 
-        # Circle background
-        bg_color = QColor(30, 30, 46)
-        painter.setBrush(bg_color)
-        painter.setPen(QColor(69, 71, 90))
-        painter.drawEllipse(2, 2, 60, 60)
+        if os.path.exists(logo_path):
+            logo_img = QPixmap(logo_path)
+            path = QPainterPath()
+            path.addEllipse(2, 2, 60, 60)
+            painter.setClipPath(path)
+            painter.drawPixmap(2, 2, 60, 60, logo_img)
+            painter.setClipping(False)
 
-        # Siren / Emergency Icon text
-        font = QFont("Segoe UI", 24, QFont.Weight.Bold)
-        painter.setFont(font)
-        painter.setPen(QColor(255, 50, 50))
-        painter.drawText(pixmap.rect(), 0x0084, "🚨")
+            painter.setPen(QPen(QColor(0, 210, 255), 2))
+            painter.drawEllipse(2, 2, 60, 60)
+        else:
+            # Circle background fallback
+            bg_color = QColor(30, 30, 46)
+            painter.setBrush(bg_color)
+            painter.setPen(QColor(69, 71, 90))
+            painter.drawEllipse(2, 2, 60, 60)
+
+            font = QFont("Segoe UI", 24, QFont.Weight.Bold)
+            painter.setFont(font)
+            painter.setPen(QColor(255, 50, 50))
+            painter.drawText(pixmap.rect(), 0x0084, "🚨")
 
         # Small status indicator dot at bottom right
         dot_color = QColor(0, 230, 118) if is_connected else QColor(255, 23, 68)
         painter.setBrush(dot_color)
-        painter.setPen(QColor(255, 255, 255))
-        painter.drawEllipse(44, 44, 16, 16)
+        painter.setPen(QPen(QColor(255, 255, 255), 1.5))
+        painter.drawEllipse(42, 42, 18, 18)
 
         painter.end()
         return QIcon(pixmap)
