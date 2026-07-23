@@ -33,7 +33,7 @@ class SoundManager(QObject):
             # Set loop count based on config & priority
             loop = self.config.get("audio_loop", True)
             if priority in ("critical", "disaster") and loop:
-                self.effect.setLoopCount(QSoundEffect.Infinite)
+                self.effect.setLoopCount(QSoundEffect.Loop.Infinite.value)
             else:
                 self.effect.setLoopCount(1)
 

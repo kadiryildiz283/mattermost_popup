@@ -95,7 +95,7 @@ class EmergencyWindow(QWidget):
         shadow.setBlurRadius(30)
         shadow.setColor(QColor(0, 0, 0, 180))
         shadow.setOffset(0, 10)
-        self.container_frame.setGraphicsDropShadowEffect(shadow)
+        self.container_frame.setGraphicsEffect(shadow)
 
         card_layout = QVBoxLayout(self.container_frame)
         card_layout.setContentsMargins(30, 25, 30, 25)
