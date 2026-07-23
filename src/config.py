@@ -1,6 +1,13 @@
 import json
 import os
+import sys
 from src.utils import get_resource_path
+
+def get_app_dir():
+    """Get absolute directory of executable or script."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(sys.argv[0]))
 
 DEFAULT_CONFIG = {
     "server_url": "https://mattermost.company.com",
@@ -25,28 +32,43 @@ DEFAULT_CONFIG = {
 }
 
 class ConfigManager:
-    def __init__(self, config_path="config.json"):
-        self.config_path = config_path
+    def __init__(self, config_filename="config.json"):
+        if os.path.isabs(config_filename):
+            self.config_path = config_filename
+        else:
+            self.config_path = os.path.join(get_app_dir(), config_filename)
+
         self.data = self.load_config()
 
     def load_config(self):
-        target_path = self.config_path
-        if not os.path.exists(target_path):
-            target_path = get_resource_path(self.config_path)
+        # 1. Check existing config next to executable
+        if os.path.exists(self.config_path):
+            try:
+                with open(self.config_path, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                    merged = DEFAULT_CONFIG.copy()
+                    merged.update(loaded)
+                    return merged
+            except Exception as e:
+                print(f"Error loading config file '{self.config_path}': {e}. Using defaults.")
+                return DEFAULT_CONFIG.copy()
 
-        if not os.path.exists(target_path):
-            self.save_config(DEFAULT_CONFIG)
-            return DEFAULT_CONFIG.copy()
+        # 2. Fallback to embedded default template if not created yet
+        embedded_path = get_resource_path("config.json")
+        if os.path.exists(embedded_path) and embedded_path != self.config_path:
+            try:
+                with open(embedded_path, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                    merged = DEFAULT_CONFIG.copy()
+                    merged.update(loaded)
+                    self.save_config(merged)
+                    return merged
+            except Exception:
+                pass
 
-        try:
-            with open(target_path, "r", encoding="utf-8") as f:
-                loaded = json.load(f)
-                merged = DEFAULT_CONFIG.copy()
-                merged.update(loaded)
-                return merged
-        except Exception as e:
-            print(f"Error loading config file '{target_path}': {e}. Using defaults.")
-            return DEFAULT_CONFIG.copy()
+        # 3. Create initial config file at executable path
+        self.save_config(DEFAULT_CONFIG)
+        return DEFAULT_CONFIG.copy()
 
     def save_config(self, data=None):
         if data is None:
@@ -55,6 +77,7 @@ class ConfigManager:
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             self.data = data
+            print(f"[Config] Saved config to: {self.config_path}")
         except Exception as e:
             print(f"Error saving config file: {e}")
 
