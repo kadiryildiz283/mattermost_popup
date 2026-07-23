@@ -4,6 +4,9 @@ dist/
 windows_dist/
 winwheels/
 _internal/
+AppDir/
+appimagetool*
+*.AppImage
 MattermostEmergencyClient
 MattermostEmergencyClient.exe
 MattermostEmergencyClient_Windows.zip

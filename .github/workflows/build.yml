@@ -1,4 +1,4 @@
-name: Build Desktop Executables
+name: Build Desktop Executables & AppImage
 
 on:
   push:
@@ -6,19 +6,45 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            artifact_name: MattermostEmergencyClient-Windows.exe
-            output_path: dist/MattermostEmergencyClient.exe
-          - os: ubuntu-latest
-            artifact_name: MattermostEmergencyClient-Linux
-            output_path: dist/MattermostEmergencyClient
+  build-windows:
+    name: Build Windows (.exe)
+    runs-on: windows-latest
+    env:
+      PYTHONIOENCODING: "utf-8"
 
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller Pillow
+
+      - name: Generate Logo Assets
+        run: |
+          python create_logo_assets.py
+
+      - name: Build Windows Executable
+        run: |
+          python build_exe.py
+
+      - name: Upload Windows Executable (.exe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: MattermostEmergencyClient-Windows.exe
+          path: dist/MattermostEmergencyClient.exe
+
+  build-linux:
+    name: Build Linux (Binary & AppImage)
+    runs-on: ubuntu-latest
     env:
       PYTHONIOENCODING: "utf-8"
 
@@ -33,10 +59,9 @@ jobs:
           cache: 'pip'
 
       - name: Install Linux GUI System Dependencies
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-cursor0 libxcb-xinerama0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxkbcommon-x11-0 libegl1 libgl1-mesa-dev
+          sudo apt-get install -y libxcb-cursor0 libxcb-xinerama0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxkbcommon-x11-0 libegl1 libgl1-mesa-dev fuse
 
       - name: Install Python Dependencies
         run: |
@@ -48,12 +73,18 @@ jobs:
         run: |
           python create_logo_assets.py
 
-      - name: Build Executable
+      - name: Build Linux Executable & AppImage
         run: |
-          python build_exe.py
+          python build_appimage.py
 
-      - name: Upload Executable Artifact
+      - name: Upload Linux Binary
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.output_path }}
+          name: MattermostEmergencyClient-Linux
+          path: dist/MattermostEmergencyClient
+
+      - name: Upload Linux AppImage (.AppImage)
+        uses: actions/upload-artifact@v4
+        with:
+          name: MattermostEmergencyClient-x86_64.AppImage
+          path: dist/MattermostEmergencyClient-x86_64.AppImage
