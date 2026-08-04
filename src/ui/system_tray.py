@@ -1,10 +1,10 @@
 import os
 import subprocess
-from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
+from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication, QMessageBox
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QPainterPath
 from PySide6.QtCore import Signal, QObject
 from src.autostart import AutoStartManager
-from src.utils import get_resource_path
+from src.utils import get_resource_path, is_admin
 
 class SystemTrayApp(QObject):
     test_alert_requested = Signal()
@@ -114,7 +114,6 @@ class SystemTrayApp(QObject):
             painter.setPen(QPen(QColor(0, 210, 255), 2))
             painter.drawEllipse(2, 2, 60, 60)
         else:
-            # Circle background fallback
             bg_color = QColor(30, 30, 46)
             painter.setBrush(bg_color)
             painter.setPen(QColor(69, 71, 90))
@@ -125,7 +124,6 @@ class SystemTrayApp(QObject):
             painter.setPen(QColor(255, 50, 50))
             painter.drawText(pixmap.rect(), 0x0084, "🚨")
 
-        # Small status indicator dot at bottom right
         dot_color = QColor(0, 230, 118) if is_connected else QColor(255, 23, 68)
         painter.setBrush(dot_color)
         painter.setPen(QPen(QColor(255, 255, 255), 1.5))
@@ -173,5 +171,25 @@ class SystemTrayApp(QObject):
                 print(f"Fallback open config failed: {ex}")
 
     def on_quit(self):
-        self.quit_requested.emit()
-        QApplication.quit()
+        if not is_admin():
+            QMessageBox.warning(
+                None,
+                "🔒 Yönetici Yetkisi Gerekli",
+                "Bu arka plan servisini kapatmak için Yönetici (Admin) yetkisi gereklidir.\nUygulama arka planda çalışmaya devam ediyor.",
+                QMessageBox.Ok
+            )
+            print("[SystemTray] Quit attempt blocked - Administrator privileges required!")
+            return
+
+        reply = QMessageBox.question(
+            None,
+            "Yönetici Çıkış Onayı",
+            "Uygulamayı kapatmak istediğinizden emin misiniz?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            self.quit_requested.emit()
+            QApplication.quit()
+
+

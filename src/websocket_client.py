@@ -4,14 +4,17 @@ import time
 import websocket
 from PySide6.QtCore import QThread, Signal
 
+from src.utils import is_mattermost_app_open
+
 class MattermostWSThread(QThread):
     # Signals for Qt UI thread
     emergency_received = Signal(dict)
     connection_changed = Signal(bool, str)
 
-    def __init__(self, config_manager, parent=None):
+    def __init__(self, config_manager, api_client=None, parent=None):
         super().__init__(parent)
         self.config = config_manager
+        self.api_client = api_client
         self.running = True
         self.ws = None
         self.seq = 1
@@ -64,6 +67,13 @@ class MattermostWSThread(QThread):
                 self.connection_changed.emit(True, "Mattermost Server'a Bağlandı")
                 retry_delay = 2  # reset delay on success connection
 
+                # Ensure current user info is fetched so we can filter self-messages
+                if self.api_client and not self.api_client.user_info:
+                    try:
+                        self.api_client.fetch_me()
+                    except Exception:
+                        pass
+
                 while self.running:
                     try:
                         raw_msg = self.ws.recv()
@@ -89,6 +99,27 @@ class MattermostWSThread(QThread):
             if self.running:
                 time.sleep(retry_delay)
                 retry_delay = min(retry_delay * 1.5, max_delay)
+
+    def is_acil_message(self, text):
+        if not text:
+            return False
+
+        # 1. Check JSON payload
+        if text.startswith("{") and text.endswith("}"):
+            try:
+                jdata = json.loads(text)
+                if isinstance(jdata, dict) and ("priority" in jdata or "message" in jdata or "title" in jdata):
+                    return True
+            except Exception:
+                pass
+
+        # 2. Check trigger keywords (case-insensitive)
+        prefixes = self.config.get("trigger_prefixes", ["/acil", "[ACIL]", "acil", "ACİL", "Acil"])
+        lower_text = text.lower()
+        for prefix in prefixes:
+            if prefix.lower() in lower_text:
+                return True
+        return False
 
     def handle_event(self, data):
         if not isinstance(data, dict):
@@ -120,17 +151,34 @@ class MattermostWSThread(QThread):
         if "*" not in allowed_channels and channel_id not in allowed_channels and channel_name not in allowed_channels:
             return
 
-        # Check if message is JSON formatted payload or trigger
-        parsed_payload = self.parse_emergency_message(message_text, sender_name, channel_name)
+        # Ignore messages sent by self
+        my_id = None
+        if self.api_client and self.api_client.user_info:
+            my_id = self.api_client.user_info.get("id")
+        if my_id and sender_id == my_id:
+            return
+
+        # Check if Mattermost app is open on PC or user is online/away
+        app_is_open = is_mattermost_app_open(self.api_client, my_id)
+        has_acil = self.is_acil_message(message_text)
+
+        # RULE:
+        # If app is open (online/away/process running): trigger popup ONLY if message has "acil"
+        # If app is closed (offline & process not running): ALWAYS trigger popup for any incoming message
+        if app_is_open and not has_acil:
+            print(f"[WS] Mattermost app is OPEN/active (online/away), skipping non-acil message: '{message_text[:30]}...'")
+            return
+
+        parsed_payload = self.parse_message_payload(message_text, sender_name, channel_name, has_acil)
         if parsed_payload:
             parsed_payload["post_id"] = post_id
             parsed_payload["channel_id"] = channel_id
             parsed_payload["sender_id"] = sender_id
-            print(f"[WS] Emergency Alert Triggered! Payload: {parsed_payload}")
+            print(f"[WS] Popup Triggered! (App Open: {app_is_open}, Has Acil: {has_acil}) Payload: {parsed_payload}")
             self.emergency_received.emit(parsed_payload)
 
-    def parse_emergency_message(self, text, sender_name, channel_name):
-        """Check trigger prefixes or JSON format for emergency content."""
+
+    def parse_message_payload(self, text, sender_name, channel_name, has_acil):
         if not text:
             return None
 
@@ -138,67 +186,65 @@ class MattermostWSThread(QThread):
         if text.startswith("{") and text.endswith("}"):
             try:
                 jdata = json.loads(text)
-                if isinstance(jdata, dict) and ("priority" in jdata or "message" in jdata or "title" in jdata):
+                if isinstance(jdata, dict):
                     return {
-                        "priority": jdata.get("priority", "critical").lower(),
-                        "title": jdata.get("title", "🚨 ACİL DURUM ALARMI"),
+                        "priority": jdata.get("priority", "critical" if has_acil else "normal").lower(),
+                        "title": jdata.get("title", "🚨 ACİL DURUM BİLDİRİMİ" if has_acil else "💬 YENİ MESAJ BİLDİRİMİ"),
                         "message": jdata.get("message", text),
                         "sender": jdata.get("sender", sender_name),
                         "channel": channel_name,
-                        "raw_text": text
+                        "raw_text": text,
+                        "has_acil": has_acil
                     }
             except Exception:
                 pass
 
-        # 2. Check trigger prefixes (case-insensitive)
-        prefixes = self.config.get("trigger_prefixes", ["/acil", "[ACIL]", "acil"])
-        lower_text = text.lower()
-        matched_prefix = None
-        for prefix in prefixes:
-            p_lower = prefix.lower()
-            if lower_text.startswith(p_lower) or p_lower in lower_text:
-                matched_prefix = prefix
-                break
-
-        if not matched_prefix:
-            return None
-
-        # Determine priority based on keywords
-        priority = "critical"
-        upper_text = text.upper()
-        if "AFET" in upper_text or "DISASTER" in upper_text or "YANGIN" in upper_text:
-            priority = "disaster"
-        elif "KRİTİK" in upper_text or "CRITICAL" in upper_text:
+        if has_acil:
             priority = "critical"
-        elif "UYARI" in upper_text or "WARNING" in upper_text:
-            priority = "warning"
-        elif "BİLGİ" in upper_text or "INFO" in upper_text:
-            priority = "normal"
+            upper_text = text.upper()
+            if "AFET" in upper_text or "DISASTER" in upper_text or "YANGIN" in upper_text:
+                priority = "disaster"
+            elif "UYARI" in upper_text or "WARNING" in upper_text:
+                priority = "warning"
 
-        # Clean text
-        clean_msg = text
-        if text.startswith(matched_prefix):
-            clean_msg = text[len(matched_prefix):].strip()
+            title = "🚨 ACİL DURUM BİLDİRİMİ"
+            clean_msg = text
 
-        # Extract title and body if user wrote e.g. "/acil [Yangın Alarmı] Sunucu odasında yangın çıktı"
-        title = "🚨 ACİL DURUM BİLDİRİMİ"
-        if clean_msg.startswith("[") and "]" in clean_msg:
-            idx = clean_msg.find("]")
-            title = clean_msg[1:idx].strip()
-            clean_msg = clean_msg[idx+1:].strip()
-        elif ":" in clean_msg and len(clean_msg.split(":", 1)[0]) < 30:
-            parts = clean_msg.split(":", 1)
-            title = parts[0].strip()
-            clean_msg = parts[1].strip()
+            prefixes = self.config.get("trigger_prefixes", ["/acil", "[ACIL]", "acil", "ACİL", "Acil"])
+            for prefix in prefixes:
+                if clean_msg.lower().startswith(prefix.lower()):
+                    clean_msg = clean_msg[len(prefix):].strip()
+                    break
 
-        if not clean_msg:
-            clean_msg = f"{matched_prefix} uyarısı tetiklendi."
+            if clean_msg.startswith("[") and "]" in clean_msg:
+                idx = clean_msg.find("]")
+                title = f"🚨 {clean_msg[1:idx].strip()}"
+                clean_msg = clean_msg[idx+1:].strip()
+            elif ":" in clean_msg and len(clean_msg.split(":", 1)[0]) < 30:
+                parts = clean_msg.split(":", 1)
+                title = f"🚨 {parts[0].strip()}"
+                clean_msg = parts[1].strip()
 
-        return {
-            "priority": priority,
-            "title": title,
-            "message": clean_msg,
-            "sender": sender_name,
-            "channel": channel_name,
-            "raw_text": text
-        }
+            if not clean_msg:
+                clean_msg = text
+
+            return {
+                "priority": priority,
+                "title": title,
+                "message": clean_msg,
+                "sender": sender_name,
+                "channel": channel_name,
+                "raw_text": text,
+                "has_acil": True
+            }
+        else:
+            return {
+                "priority": "normal",
+                "title": "💬 YENİ MESAJ BİLDİRİMİ",
+                "message": text,
+                "sender": sender_name,
+                "channel": channel_name,
+                "raw_text": text,
+                "has_acil": False
+            }
+

@@ -31,6 +31,22 @@ class MattermostApiClient:
             print(f"[API Exception] fetch_me failed: {e}")
         return None
 
+    def get_user_status(self, user_id):
+        """Fetch user status ('online', 'away', 'dnd', 'offline') from Mattermost REST API."""
+        if not user_id:
+            return "offline"
+        url = f"{self.config.rest_url}/users/{user_id}/status"
+        try:
+            res = requests.get(url, headers=self.get_headers(), timeout=5, verify=False)
+            if res.status_code == 200:
+                data = res.json()
+                status = data.get("status", "offline").lower()
+                return status
+        except Exception as e:
+            print(f"[API Exception] get_user_status failed: {e}")
+        return "offline"
+
+
     def post_ack(self, channel_id, post_id, alert_title, alert_message):
         """Send acknowledgment message to the channel as a reply or new post."""
         if not self.config.get("auto_post_ack", True):

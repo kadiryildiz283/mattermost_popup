@@ -41,17 +41,17 @@ DEFAULT_CONFIG = {
     "trigger_prefixes": ["/acil", "[ACIL]", "[URGENT]", "[EMERGENCY]", "acil", "ACIL"],
     "channels": ["*"],
     "audio_enabled": True,
-    "audio_loop": True,
+    "audio_loop": False,
     "auto_post_ack": True,
     "ack_message_template": "✅ **{user_display_name}** ({username}) acil uyarısını okudu/onayladı: **{title}**",
     "window_always_on_top": True,
     "disable_esc_key": True,
     "fullscreen_for_critical": False,
     "sound_files": {
-        "normal": "sounds/ding.wav",
-        "warning": "sounds/warning.wav",
-        "critical": "sounds/siren.wav",
-        "disaster": "sounds/airraid.wav"
+        "normal": "sounds/gentle_chime.wav",
+        "warning": "sounds/gentle_alert.wav",
+        "critical": "sounds/gentle_alert.wav",
+        "disaster": "sounds/gentle_alert.wav"
     }
 }
 

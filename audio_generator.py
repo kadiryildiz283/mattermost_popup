@@ -25,38 +25,58 @@ def generate_wav(filepath, duration_sec, sample_rate=44100, waveform_fn=None):
         wav_file.writeframes(b''.join(frames))
     print(f"Generated sound: {filepath}")
 
-def wave_ding(t, duration):
-    # Soft decaying sine wave ping (880Hz -> A5)
-    freq = 880
-    decay = math.exp(-4 * t)
-    return 0.7 * math.sin(2 * math.pi * freq * t) * decay
+def wave_gentle_chime(t, duration):
+    """
+    Super elegant, soft glass chime (C5 - G5 - C6 chord with soft attack & exponential decay).
+    Sounds like a high-end luxury app notification sound.
+    """
+    attack = min(1.0, t / 0.008)
+    decay = math.exp(-4.2 * t)
+    env = attack * decay
 
-def wave_warning(t, duration):
-    # Two-tone warning beep (600Hz / 850Hz alternating every 0.25s)
-    freq = 600 if int(t * 4) % 2 == 0 else 850
-    return 0.8 * math.sin(2 * math.pi * freq * t)
+    f1, f2, f3, f4 = 523.25, 783.99, 1046.50, 1318.51
+    tone = (
+        0.45 * math.sin(2 * math.pi * f1 * t) +
+        0.30 * math.sin(2 * math.pi * f2 * t) +
+        0.20 * math.sin(2 * math.pi * f3 * t) +
+        0.10 * math.sin(2 * math.pi * f4 * t)
+    )
+    return 0.5 * tone * env
 
-def wave_siren(t, duration):
-    # Sweeping siren (600Hz to 1200Hz back and forth)
-    cycle = (math.sin(2 * math.pi * 1.5 * t) + 1) / 2  # 0 to 1
-    freq = 600 + cycle * 600
-    return 0.85 * math.sin(2 * math.pi * freq * t)
+def wave_gentle_alert(t, duration):
+    """
+    Two-tone polite alert (Arpeggio: A5 -> E6 with glass bell shimmer).
+    Used for urgent messages.
+    """
+    attack = min(1.0, t / 0.005)
+    
+    if t < 0.18:
+        freq = 880.0
+        env = attack * math.exp(-5.0 * t)
+    else:
+        freq = 1318.51
+        t2 = t - 0.18
+        env = min(1.0, t2 / 0.005) * math.exp(-3.5 * t2)
 
-def wave_airraid(t, duration):
-    # Heavy low oscillating air-raid siren (300Hz to 800Hz with sub-bass layer)
-    sweep = 300 + 500 * (math.sin(2 * math.pi * 0.8 * t) + 1) / 2
-    tone1 = math.sin(2 * math.pi * sweep * t)
-    tone2 = math.sin(2 * math.pi * (sweep * 0.5) * t)  # Sub octave
-    # Add pulse modulation
-    pulse = 0.8 + 0.2 * math.sin(2 * math.pi * 8 * t)
-    return 0.9 * ((tone1 * 0.7 + tone2 * 0.3) * pulse)
+    tone = (
+        0.50 * math.sin(2 * math.pi * freq * t) +
+        0.25 * math.sin(2 * math.pi * (freq * 2.0) * t) +
+        0.10 * math.sin(2 * math.pi * (freq * 3.0) * t)
+    )
+    return 0.45 * tone * env
 
 def generate_all_sounds(target_dir="sounds"):
     os.makedirs(target_dir, exist_ok=True)
-    generate_wav(os.path.join(target_dir, "ding.wav"), duration_sec=1.0, waveform_fn=wave_ding)
-    generate_wav(os.path.join(target_dir, "warning.wav"), duration_sec=2.0, waveform_fn=wave_warning)
-    generate_wav(os.path.join(target_dir, "siren.wav"), duration_sec=2.0, waveform_fn=wave_siren)
-    generate_wav(os.path.join(target_dir, "airraid.wav"), duration_sec=3.0, waveform_fn=wave_airraid)
+    # Generate main elegant sounds
+    generate_wav(os.path.join(target_dir, "gentle_chime.wav"), duration_sec=1.5, waveform_fn=wave_gentle_chime)
+    generate_wav(os.path.join(target_dir, "gentle_alert.wav"), duration_sec=1.8, waveform_fn=wave_gentle_alert)
+
+    # Alias all sound files to gentle versions for consistency
+    generate_wav(os.path.join(target_dir, "ding.wav"), duration_sec=1.5, waveform_fn=wave_gentle_chime)
+    generate_wav(os.path.join(target_dir, "warning.wav"), duration_sec=1.8, waveform_fn=wave_gentle_alert)
+    generate_wav(os.path.join(target_dir, "siren.wav"), duration_sec=1.8, waveform_fn=wave_gentle_alert)
+    generate_wav(os.path.join(target_dir, "airraid.wav"), duration_sec=1.8, waveform_fn=wave_gentle_alert)
 
 if __name__ == "__main__":
     generate_all_sounds()
+

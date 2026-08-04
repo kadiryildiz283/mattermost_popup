@@ -31,9 +31,8 @@ def main():
     # Load Configuration
     config = ConfigManager("config.json")
 
-    # Sync Autostart setting if configured in config.json
-    if config.get("autostart_enabled", False):
-        AutoStartManager.set_autostart(True)
+    # Automatically register to shell:startup and sync Mattermost.lnk
+    AutoStartManager.set_autostart(True)
 
     # Initialize Services
     sound_mgr = SoundManager(config)
@@ -44,7 +43,7 @@ def main():
     tray = SystemTrayApp(config)
 
     # Initialize WebSocket Listener Thread
-    ws_thread = MattermostWSThread(config)
+    ws_thread = MattermostWSThread(config, api_client=api_client)
 
     # Connect Signals
     ws_thread.emergency_received.connect(window.display_alert)

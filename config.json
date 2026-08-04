@@ -4,7 +4,7 @@
   "trigger_prefixes": ["/acil", "[ACIL]", "[YANGIN]", "[URGENT]", "[EMERGENCY]"],
   "channels": ["*"],
   "audio_enabled": true,
-  "audio_loop": true,
+  "audio_loop": false,
   "auto_post_ack": true,
   "ack_message_template": "✅ **{user_display_name}** ({username}) acil durum uyarısını okudu/onayladı: **{title}**",
   "window_always_on_top": true,
@@ -12,9 +12,10 @@
   "fullscreen_for_critical": false,
   "autostart_enabled": false,
   "sound_files": {
-    "normal": "sounds/ding.wav",
-    "warning": "sounds/warning.wav",
-    "critical": "sounds/siren.wav",
-    "disaster": "sounds/airraid.wav"
+    "normal": "sounds/gentle_chime.wav",
+    "warning": "sounds/gentle_alert.wav",
+    "critical": "sounds/gentle_alert.wav",
+    "disaster": "sounds/gentle_alert.wav"
   }
 }
+
