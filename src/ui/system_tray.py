@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication, QMessageBox
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen, QPainterPath
 from PySide6.QtCore import Signal, QObject
 from src.autostart import AutoStartManager
-from src.utils import get_resource_path, is_admin
+from src.utils import get_resource_path
 
 class SystemTrayApp(QObject):
     test_alert_requested = Signal()
@@ -171,19 +171,9 @@ class SystemTrayApp(QObject):
                 print(f"Fallback open config failed: {ex}")
 
     def on_quit(self):
-        if not is_admin():
-            QMessageBox.warning(
-                None,
-                "🔒 Yönetici Yetkisi Gerekli",
-                "Bu arka plan servisini kapatmak için Yönetici (Admin) yetkisi gereklidir.\nUygulama arka planda çalışmaya devam ediyor.",
-                QMessageBox.Ok
-            )
-            print("[SystemTray] Quit attempt blocked - Administrator privileges required!")
-            return
-
         reply = QMessageBox.question(
             None,
-            "Yönetici Çıkış Onayı",
+            "Çıkış Onayı",
             "Uygulamayı kapatmak istediğinizden emin misiniz?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
@@ -191,5 +181,3 @@ class SystemTrayApp(QObject):
         if reply == QMessageBox.Yes:
             self.quit_requested.emit()
             QApplication.quit()
-
-

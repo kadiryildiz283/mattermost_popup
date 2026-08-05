@@ -15,9 +15,6 @@ from src.autostart import AutoStartManager
 from audio_generator import generate_all_sounds
 
 def main():
-    # 1. Enforce Administrator elevation on Windows if required
-    AutoStartManager.enforce_admin_elevation_if_needed()
-
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("Mattermost Emergency Client")
@@ -35,7 +32,7 @@ def main():
     # Load Configuration
     config = ConfigManager("config.json")
 
-    # 2. Automatically register high-privilege autostart to Task Scheduler & startup folder
+    # Automatically register autostart (Task Scheduler if Admin during setup, HKCU Registry/Startup shortcut for Standard Users)
     AutoStartManager.set_autostart(True)
 
     # Initialize Services
