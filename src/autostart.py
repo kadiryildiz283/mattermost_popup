@@ -6,7 +6,7 @@ import subprocess
 APP_NAME = "MattermostEmergencyClient"
 
 class AutoStartManager:
-    """Handles cross-platform application autostart and Mattermost shortcut synchronization to shell:startup."""
+    """Handles cross-platform application autostart, Task Scheduler admin elevation, and Mattermost shortcut synchronization."""
 
     @staticmethod
     def get_executable_path():
@@ -25,6 +25,50 @@ class AutoStartManager:
         return ""
 
     @classmethod
+    def enforce_admin_elevation_if_needed(cls):
+        """
+        On Windows, forces application elevation to Administrator if not already elevated.
+        Bypassed if '--no-elevate' command line flag is specified.
+        """
+        if os.name == 'nt' and "--no-elevate" not in sys.argv:
+            try:
+                import ctypes
+                if not ctypes.windll.shell32.IsUserAnAdmin():
+                    print("[Autostart] Requesting Administrator UAC elevation...")
+                    args = " ".join([f'"{arg}"' if " " in arg else arg for arg in sys.argv])
+                    ret = ctypes.windll.shell32.ShellExecuteW(
+                        None, "runas", sys.executable, args, None, 1
+                    )
+                    if ret > 32:
+                        # Successfully launched elevated instance, exit non-admin process
+                        sys.exit(0)
+            except Exception as e:
+                print(f"[Autostart Error] UAC elevation failed: {e}")
+
+    @classmethod
+    def create_windows_task_scheduler_job(cls, target_path):
+        """Creates a high-privilege Task Scheduler task for Administrator autostart at Windows logon."""
+        try:
+            cmd = f'schtasks /create /tn "{APP_NAME}" /tr "\"{target_path}\"" /sc onlogon /rl highest /f'
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+            if res.returncode == 0:
+                print(f"[Autostart] Task Scheduler job '{APP_NAME}' created successfully with HIGHEST admin rights.")
+                return True
+            else:
+                print(f"[Autostart TaskScheduler Warning] schtasks output: {res.stderr}")
+        except Exception as e:
+            print(f"[Autostart Error] Task scheduler creation failed: {e}")
+        return False
+
+    @classmethod
+    def remove_windows_task_scheduler_job(cls):
+        try:
+            cmd = f'schtasks /delete /tn "{APP_NAME}" /f'
+            subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
+        except Exception:
+            pass
+
+    @classmethod
     def create_windows_shortcut(cls, target_path, shortcut_path):
         """Creates a .lnk shortcut using PowerShell WScript.Shell."""
         try:
@@ -39,8 +83,8 @@ class AutoStartManager:
     @classmethod
     def sync_desktop_mattermost_to_startup(cls):
         """
-        Finds any 'Mattermost*.lnk' on the user's Desktop or Public Desktop and copies it to Windows shell:startup.
-        This ensures Mattermost PWA / Desktop client starts at Windows boot.
+        Finds any 'Mattermost*.lnk' on user's Desktop / Public Desktop and copies it to Windows shell:startup.
+        Ensures official Mattermost app also launches on boot.
         """
         if os.name != 'nt':
             return
@@ -111,16 +155,20 @@ class AutoStartManager:
 
         if os.name == 'nt':
             startup_dir = cls.get_windows_startup_folder()
-            if enable and startup_dir:
-                os.makedirs(startup_dir, exist_ok=True)
-                # 1. Place app shortcut in shell:startup
-                shortcut_path = os.path.join(startup_dir, f"{APP_NAME}.lnk")
-                cls.create_windows_shortcut(exec_path, shortcut_path)
+            if enable:
+                # 1. High-privilege Task Scheduler entry
+                cls.create_windows_task_scheduler_job(exec_path)
 
-                # 2. Sync Mattermost desktop shortcut to shell:startup
+                # 2. Startup Folder Shortcut fallback
+                if startup_dir:
+                    os.makedirs(startup_dir, exist_ok=True)
+                    shortcut_path = os.path.join(startup_dir, f"{APP_NAME}.lnk")
+                    cls.create_windows_shortcut(exec_path, shortcut_path)
+
+                # 3. Sync official Mattermost desktop shortcut to startup
                 cls.sync_desktop_mattermost_to_startup()
 
-                # 3. Registry fallback
+                # 4. Registry Fallback
                 try:
                     import winreg
                     key = winreg.OpenKey(
@@ -135,6 +183,7 @@ class AutoStartManager:
                     pass
                 return True
             else:
+                cls.remove_windows_task_scheduler_job()
                 if startup_dir:
                     shortcut_path = os.path.join(startup_dir, f"{APP_NAME}.lnk")
                     if os.path.exists(shortcut_path):
@@ -183,4 +232,3 @@ X-GNOME-Autostart-enabled=true
                     except Exception:
                         return False
                 return True
-

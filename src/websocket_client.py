@@ -162,21 +162,14 @@ class MattermostWSThread(QThread):
         app_is_open = is_mattermost_app_open(self.api_client, my_id)
         has_acil = self.is_acil_message(message_text)
 
-        # RULE:
-        # If app is open (online/away/process running): trigger popup ONLY if message has "acil"
-        # If app is closed (offline & process not running): ALWAYS trigger popup for any incoming message
-        if app_is_open and not has_acil:
-            print(f"[WS] Mattermost app is OPEN/active (online/away), skipping non-acil message: '{message_text[:30]}...'")
-            return
-
         parsed_payload = self.parse_message_payload(message_text, sender_name, channel_name, has_acil)
         if parsed_payload:
             parsed_payload["post_id"] = post_id
             parsed_payload["channel_id"] = channel_id
             parsed_payload["sender_id"] = sender_id
-            print(f"[WS] Popup Triggered! (App Open: {app_is_open}, Has Acil: {has_acil}) Payload: {parsed_payload}")
+            parsed_payload["is_app_open"] = app_is_open
+            print(f"[WS] Message Received (App Open: {app_is_open}, Has Acil: {has_acil}) Payload: {parsed_payload}")
             self.emergency_received.emit(parsed_payload)
-
 
     def parse_message_payload(self, text, sender_name, channel_name, has_acil):
         if not text:
@@ -247,4 +240,3 @@ class MattermostWSThread(QThread):
                 "raw_text": text,
                 "has_acil": False
             }
-

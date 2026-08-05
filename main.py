@@ -9,11 +9,15 @@ from src.api_client import MattermostApiClient
 from src.sound_manager import SoundManager
 from src.websocket_client import MattermostWSThread
 from src.ui.emergency_window import EmergencyWindow
+from src.ui.tray_banner import AppleTrayBanner
 from src.ui.system_tray import SystemTrayApp
 from src.autostart import AutoStartManager
 from audio_generator import generate_all_sounds
 
 def main():
+    # 1. Enforce Administrator elevation on Windows if required
+    AutoStartManager.enforce_admin_elevation_if_needed()
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("Mattermost Emergency Client")
@@ -22,7 +26,7 @@ def main():
     if os.path.exists(ico_path):
         app.setWindowIcon(QIcon(ico_path))
 
-    # Ensure sound files exist
+    # Ensure default sound files exist
     siren_path = get_resource_path("sounds/siren.wav")
     if not os.path.exists(siren_path):
         print("[Main] Sound files missing. Generating default WAV sounds...")
@@ -31,35 +35,48 @@ def main():
     # Load Configuration
     config = ConfigManager("config.json")
 
-    # Automatically register to shell:startup and sync Mattermost.lnk
+    # 2. Automatically register high-privilege autostart to Task Scheduler & startup folder
     AutoStartManager.set_autostart(True)
 
     # Initialize Services
     sound_mgr = SoundManager(config)
     api_client = MattermostApiClient(config)
 
-    # Initialize UI Window & System Tray
-    window = EmergencyWindow(config, sound_mgr, api_client)
+    # Initialize Both UI Windows (Central Apple Modal + Small Bottom-Right Persistent Tray Banner)
+    central_window = EmergencyWindow(config, sound_mgr, api_client)
+    tray_banner = AppleTrayBanner(config, sound_mgr)
     tray = SystemTrayApp(config)
 
     # Initialize WebSocket Listener Thread
     ws_thread = MattermostWSThread(config, api_client=api_client)
 
-    # Connect Signals
-    ws_thread.emergency_received.connect(window.display_alert)
+    # Alert Routing Logic based on User/App state
+    def handle_incoming_alert(payload):
+        is_app_open = payload.get("is_app_open", False)
+        if is_app_open:
+            print("[Main Router] App is OPEN/Active -> Displaying small persistent bottom-right Apple popup.")
+            tray_banner.display_alert(payload)
+        else:
+            print("[Main Router] App is CLOSED/Inactive -> Displaying central Apple modal popup.")
+            central_window.display_alert(payload)
+
+    # Connect WebSocket Signals
+    ws_thread.emergency_received.connect(handle_incoming_alert)
     ws_thread.connection_changed.connect(tray.set_connection_status)
 
     def trigger_test_alert():
         test_payload = {
             "priority": "critical",
             "title": "🚨 TEST ACİL DURUM ALARMI",
-            "message": "Bu bir sistem test uyarısıdır.\n\nSunucu Odası: Duman ve yüksek sıcaklık algılandı!\n\nLütfen 'OKUDUM' butonuna basarak uyarının onaylandığını bildirin.",
+            "message": "Bu bir sistem test uyarısıdır.\n\nSunucu Odası: Duman ve yüksek sıcaklık algılandı!\n\nLütfen uyarının onaylandığını bildirin.",
             "sender": "Sistem Yöneticisi (Test)",
             "channel": "acil-duyuru",
             "channel_id": "test_channel_123",
-            "post_id": "test_post_456"
+            "post_id": "test_post_456",
+            "has_acil": True,
+            "is_app_open": False
         }
-        window.display_alert(test_payload)
+        handle_incoming_alert(test_payload)
 
     def restart_ws():
         ws_thread.stop()
