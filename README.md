@@ -9,18 +9,20 @@ Mattermost sunucusunu **WebSocket API** üzerinden dinleyen, `/acil` komutu veya
 1. **Mattermost Dokunulmazlığı**: Mattermost sunucusunu fork etmeniz veya eklenti (plugin) yazmanız gerekmez. Yalnızca **Personal Access Token (PAT)** veya bot token'ı kullanır.
 2. **WebSocket Dinleyici**: Tüm yeni mesajları `wss://` üzerinden anlık (0ms gecikme ile) yakalar. Kopmalarda otomatik olarak tekrar bağlanır (`Auto-Reconnect`).
 3. **Masaüstü Popup (PySide6 / Qt)**:
-   - Modern, yüksek çözünürlüklü ve şık arayüz.
-   - Her zaman en üstte (`WindowStaysOnTopHint`).
-   - Kullanıcı `[OKUDUM / ONAYLADIM]` butonuna basana kadar ekrandan gitmez ve `ESC` tuşu engellenir.
-   - İsteğe bağlı Tam Ekran (`Fullscreen`) modu.
-4. **Otomatik Okundu (ACK) Bildirimi**: Kullanıcı popup üzerindeki `OKUDUM` butonuna bastığında, Mattermost kanalına otomatik yanıt atar:
+   - **Kullanıcı İnaktif / Uygulama Kapalıyken**: Ekran ortasında açılan zarif Apple macOS Dark Glassmorphic Modal popup penceresi.
+   - **Kullanıcı Aktif / Uygulama Açıkken**: Ekranın sağ alt köşesinde (sistem simgeleri üstünde) beliren, kibar, `360x150 px` boyutlarında **kalıcı (persistent)** Apple macOS bildirim kartı.
+   - Kullanıcı `[OKUDUM / ONAYLADIM]` veya `[✕]` butonuna basana kadar ekrandan gitmez.
+4. **Şirket İçi Dağıtım ve Otomatik Başlatma**:
+   - Windows Görev Zamanlayıcısı (`Task Scheduler`) ile yüksek yetkili (`/rl highest`) otomatik başlatma.
+   - Çalışanların bilgisayar açılışlarında veya manuel tıklamalarında **hiçbir UAC / Admin şifresi sorulmaz**.
+5. **Otomatik Okundu (ACK) Bildirimi**: Kullanıcı popup üzerindeki `OKUDUM` butonuna bastığında, Mattermost kanalına otomatik yanıt atar:
    > `✅ Kadir Yılmaz acil durumu gördü ve onayladı: Yangın Alarmı`
-5. **Ses Seviyeleri (Priority Audio)**:
+6. **Ses Seviyeleri (Priority Audio)**:
    - `normal`: Bilgilendirme sesi (`ding.wav`)
    - `warning`: Uyarı ikazı (`warning.wav`)
    - `critical`: Kritik siren alarmı (`siren.wav`)
    - `disaster`: Yüksek tonlu afet ikazı (`airraid.wav`)
-6. **Sistem Tepsi (System Tray) Desteği**:
+7. **Sistem Tepsi (System Tray) Desteği**:
    - Arka planda sessizce çalışır.
    - **RAM**: ~25-40 MB | **CPU**: %0.
 
@@ -30,8 +32,10 @@ Mattermost sunucusunu **WebSocket API** üzerinden dinleyen, `/acil` komutu veya
 
 ```
 mattermost_popup/
+├── CHANGELOG.md                # Yapılan güncellemeler ve sürüm notları
+├── README.md                   # Proje dokümantasyonu ve kullanım kılavuzu
 ├── config.json                 # Sunucu URL, PAT Token ve ses ayarları
-├── main.py                     # Ana uygulama başlatıcı (System Tray + WebSocket + Qt)
+├── main.py                     # Ana uygulama başlatıcı (System Tray + WebSocket + Qt Router)
 ├── audio_generator.py          # Yerleşik varsayılan alarm seslerini üreten modül
 ├── build_exe.py                # PyInstaller ile tek tıkla .exe derleme betiği
 ├── requirements.txt            # Python bağımlılıkları (PySide6, websocket-client, requests)
@@ -44,9 +48,12 @@ mattermost_popup/
     ├── config.py               # Yapılandırma yöneticisi
     ├── api_client.py           # REST API istemcisi (OKUDUM yanıtı göndermek için)
     ├── sound_manager.py        # Qt QSoundEffect tabanlı ses oynatıcı
+    ├── autostart.py            # Task Scheduler ve başlangıç yöneticisi
+    ├── utils.py                # Aktiflik/süreç kontrol araçları
     ├── websocket_client.py     # Otomatik bağlantı yenilemeli WebSocket dinleyicisi
     └── ui/
-        ├── emergency_window.py # Acil durum popup penceresi (Qt)
+        ├── emergency_window.py # Ekran ortası Apple macOS modal penceresi (Qt)
+        ├── tray_banner.py      # Sağ alt köşe kalıcı Apple notification banner (Qt)
         └── system_tray.py      # Arka plan tepsi simgesi ve sağ tık menüsü
 ```
 
@@ -99,45 +106,6 @@ python main.py --test
 
 ---
 
-## 📩 Tetikleme Örnekleri (Mattermost Mesajları)
-
-### Yöntem A: Düz Metin / Komut Kullanımı
-
-Mattermost'ta herhangi bir kanala veya `/acil` ile başlayan bir mesaj yazmanız yeterlidir:
-
-```
-/acil Sunucu Odası Yangın Alarmı: Duman algılandı, lütfen bina tahliye planını uygulayın!
-```
-
-veya
-
-```
-[ACIL] Sistem Çökmesi: Ana veritabanı erişilemez durumda!
-```
-
----
-
-### Yöntem B: Yapılandırılmış JSON Mesajı
-
-Daha fazla detay ve öncelik seviyesi belirtmek isterseniz mesaj alanına JSON yazabilirsiniz:
-
-```json
-{
-  "priority": "critical",
-  "title": "Yangın Alarmı",
-  "message": "Sunucu odasında duman ve yüksek sıcaklık algılandı.",
-  "sender": "Sistem Alarm Botu"
-}
-```
-
-Öncelik seviyeleri (`priority`):
-- `normal` -> Mavi tema, ding sesi
-- `warning` -> Sarı/Turuncu tema, ikaz sesi
-- `critical` -> Kırmızı tema, siren sesi (Döngüsel çalar)
-- `disaster` -> Derin Mor/Kırmızı tema, ağır afet ikaz sesi (Döngüsel çalar)
-
----
-
 ## 📦 Windows için Tek Parça (`.exe`) Dağıtımı Paketleme
 
 Uygulama, klasör veya zip gerektirmeden **tek bir bağımsız `.exe` dosyası** (`--onefile`) olarak derlenmektedir:
@@ -148,5 +116,4 @@ python build_exe.py
 
 - Derlenen uygulama doğrudan `dist/MattermostEmergencyClient.exe` dosyası olarak üretilir.
 - GitHub Actions üzerinde build tamamlandığında doğrudan indirilebilir tek parça `.exe` olarak yayınlanır.
-- `albay-logo.jpg` görseli otomatik olarak yüksek çözünürlüklü `.ico` simgesine dönüştürülüp masaüstü kısayolu, Windows görev çubuğu, sistem tepsi (System Tray) simgesi ve acil durum başlıklarında kullanılır.
-- Windows başlangıcına (Startup folder: `shell:startup`) ekleyerek PC açılışında otomatik çalışmasını sağlayabilirsiniz.
+- Detaylı sürüm geçmişi ve mimari notlar için [`CHANGELOG.md`](file:///home/kadir/Projeler/mattermost_popup/CHANGELOG.md) dosyasına bakabilirsiniz.
