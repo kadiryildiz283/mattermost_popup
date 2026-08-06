@@ -66,6 +66,14 @@ def wave_gentle_alert(t, duration):
     return 0.45 * tone * env
 
 def generate_all_sounds(target_dir="sounds"):
+    import sys
+    if not os.path.isabs(target_dir):
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+        target_dir = os.path.join(base_dir, target_dir)
+
     os.makedirs(target_dir, exist_ok=True)
     # Generate main elegant sounds
     generate_wav(os.path.join(target_dir, "gentle_chime.wav"), duration_sec=1.5, waveform_fn=wave_gentle_chime)

@@ -30,7 +30,6 @@ def build():
         "--onefile",
         "--windowed",
         "--noupx",
-        "--uac-admin",
         "--icon=app.ico",
         "--name=MattermostEmergencyClient",
         f"--add-data=sounds{sep}sounds",

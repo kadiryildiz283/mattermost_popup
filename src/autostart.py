@@ -9,13 +9,33 @@ APP_NAME = "MattermostEmergencyClient"
 class AutoStartManager:
     """Handles cross-platform application autostart, Task Scheduler admin elevation, and Mattermost shortcut synchronization."""
 
+    @classmethod
+    def get_executable_info(cls):
+        """
+        Returns (target_path, arguments, work_dir) for shortcut/autostart.
+        If compiled executable (sys.frozen), target is executable path.
+        If python script, target is pythonw.exe (or python.exe) and argument is script path.
+        """
+        if getattr(sys, 'frozen', False):
+            target = os.path.abspath(sys.executable)
+            args = ""
+            work_dir = os.path.dirname(target)
+        else:
+            script_path = os.path.abspath(sys.argv[0])
+            work_dir = os.path.dirname(script_path)
+            python_dir = os.path.dirname(sys.executable)
+            pythonw = os.path.join(python_dir, "pythonw.exe")
+            if os.path.exists(pythonw):
+                target = pythonw
+            else:
+                target = sys.executable
+            args = f'"{script_path}"'
+        return target, args, work_dir
+
     @staticmethod
     def get_executable_path():
-        if getattr(sys, 'frozen', False):
-            path = os.path.abspath(sys.executable)
-        else:
-            path = os.path.abspath(sys.argv[0])
-        return path
+        target, _, _ = AutoStartManager.get_executable_info()
+        return target
 
     @staticmethod
     def get_windows_startup_folder():
@@ -28,8 +48,7 @@ class AutoStartManager:
     @classmethod
     def create_windows_task_scheduler_job(cls, target_path):
         """
-        Creates a high-privilege Task Scheduler task for Administrator autostart at Windows logon.
-        When run by Task Scheduler, Windows bypasses UAC prompts for standard users.
+        Creates a Task Scheduler task for Administrator autostart at Windows logon.
         """
         if not is_admin():
             return False
@@ -38,7 +57,7 @@ class AutoStartManager:
             cmd = f'schtasks /create /tn "{APP_NAME}" /tr "\"{target_path}\"" /sc onlogon /rl highest /f'
             res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
-                print(f"[Autostart] Task Scheduler job '{APP_NAME}' created successfully with HIGHEST admin rights.")
+                print(f"[Autostart] Task Scheduler job '{APP_NAME}' created successfully.")
                 return True
             else:
                 print(f"[Autostart TaskScheduler Warning] schtasks output: {res.stderr}")
@@ -57,13 +76,34 @@ class AutoStartManager:
             pass
 
     @classmethod
-    def create_windows_shortcut(cls, target_path, shortcut_path):
-        """Creates a .lnk shortcut using PowerShell WScript.Shell."""
+    def create_windows_shortcut(cls, shortcut_path):
+        """Creates a .lnk shortcut using PowerShell WScript.Shell with TargetPath, WorkingDirectory, and Arguments."""
         try:
-            cmd = f"$s=(New-Object -COM WScript.Shell).CreateShortcut('{shortcut_path}');$s.TargetPath='{target_path}';$s.Save()"
-            subprocess.run(["powershell", "-Command", cmd], capture_output=True, timeout=5)
-            print(f"[Autostart] Created shortcut '{shortcut_path}' -> '{target_path}'")
-            return True
+            import json
+            target_path, args, work_dir = cls.get_executable_info()
+            
+            ps_script = f"""
+$shortcutPath = {json.dumps(shortcut_path)}
+$targetPath = {json.dumps(target_path)}
+$workDir = {json.dumps(work_dir)}
+$arguments = {json.dumps(args)}
+
+$WScriptShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WScriptShell.CreateShortcut($shortcutPath)
+$Shortcut.TargetPath = $targetPath
+$Shortcut.WorkingDirectory = $workDir
+if ($arguments) {{
+    $Shortcut.Arguments = $arguments
+}}
+$Shortcut.Save()
+"""
+            res = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script], capture_output=True, text=True, timeout=10)
+            if res.returncode == 0 and os.path.exists(shortcut_path):
+                print(f"[Autostart] Created shortcut '{shortcut_path}' -> '{target_path}' (workdir: '{work_dir}', args: '{args}')")
+                return True
+            else:
+                print(f"[Autostart Error] Shortcut creation failed: {res.stderr}")
+                return False
         except Exception as e:
             print(f"[Autostart Error] Failed to create shortcut: {e}")
             return False
@@ -103,8 +143,9 @@ class AutoStartManager:
         for src_lnk in found_shortcuts:
             try:
                 dest_lnk = os.path.join(startup_dir, os.path.basename(src_lnk))
-                shutil.copy2(src_lnk, dest_lnk)
-                print(f"[Autostart] Synced Desktop shortcut '{src_lnk}' to startup: '{dest_lnk}'")
+                if not os.path.exists(dest_lnk):
+                    shutil.copy2(src_lnk, dest_lnk)
+                    print(f"[Autostart] Synced Desktop shortcut '{src_lnk}' to startup: '{dest_lnk}'")
             except Exception as e:
                 print(f"[Autostart Error] Could not copy '{src_lnk}' to startup: {e}")
 
@@ -139,25 +180,19 @@ class AutoStartManager:
 
     @classmethod
     def set_autostart(cls, enable: bool) -> bool:
-        exec_path = cls.get_executable_path()
-
         if os.name == 'nt':
             startup_dir = cls.get_windows_startup_folder()
             if enable:
-                # 1. Task Scheduler (If running as Admin during initial setup/installation)
-                if is_admin():
-                    cls.create_windows_task_scheduler_job(exec_path)
-
-                # 2. Startup Folder Shortcut fallback (No UAC required for standard user)
+                # 1. Startup Folder Shortcut (Primary autostart for system tray desktop apps)
                 if startup_dir:
                     os.makedirs(startup_dir, exist_ok=True)
                     shortcut_path = os.path.join(startup_dir, f"{APP_NAME}.lnk")
-                    cls.create_windows_shortcut(exec_path, shortcut_path)
+                    cls.create_windows_shortcut(shortcut_path)
 
-                # 3. Sync official Mattermost desktop shortcut to startup
+                # 2. Sync official Mattermost desktop shortcut to startup if present on Desktop
                 cls.sync_desktop_mattermost_to_startup()
 
-                # 4. HKCU Registry Fallback (No UAC required for standard user)
+                # 3. Clean up HKCU Registry to avoid duplicate execution
                 try:
                     import winreg
                     key = winreg.OpenKey(
@@ -166,7 +201,10 @@ class AutoStartManager:
                         0,
                         winreg.KEY_ALL_ACCESS
                     )
-                    winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, f'"{exec_path}"')
+                    try:
+                        winreg.DeleteValue(key, APP_NAME)
+                    except FileNotFoundError:
+                        pass
                     winreg.CloseKey(key)
                 except Exception:
                     pass
@@ -189,7 +227,10 @@ class AutoStartManager:
                         0,
                         winreg.KEY_ALL_ACCESS
                     )
-                    winreg.DeleteValue(key, APP_NAME)
+                    try:
+                        winreg.DeleteValue(key, APP_NAME)
+                    except FileNotFoundError:
+                        pass
                     winreg.CloseKey(key)
                 except Exception:
                     pass

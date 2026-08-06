@@ -3,8 +3,9 @@ import os
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
 
+from PySide6.QtCore import QLockFile, QDir
+from src.config import ConfigManager, get_app_dir
 from src.utils import get_resource_path
-from src.config import ConfigManager
 from src.api_client import MattermostApiClient
 from src.sound_manager import SoundManager
 from src.websocket_client import MattermostWSThread
@@ -15,9 +16,25 @@ from src.autostart import AutoStartManager
 from audio_generator import generate_all_sounds
 
 def main():
+    # Ensure current working directory is set to app root directory
+    app_dir = get_app_dir()
+    if app_dir and os.path.exists(app_dir):
+        try:
+            os.chdir(app_dir)
+        except Exception:
+            pass
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("Mattermost Emergency Client")
+
+    # Single Instance Guard using QLockFile
+    lock_path = os.path.join(QDir.tempPath(), "mattermost_emergency_client.lock")
+    lock_file = QLockFile(lock_path)
+    lock_file.setStaleLockTime(0)
+    if not lock_file.tryLock(100):
+        print("[Main] Application is already running in background. Exiting duplicate instance.")
+        sys.exit(0)
 
     ico_path = get_resource_path("app.ico")
     if os.path.exists(ico_path):
